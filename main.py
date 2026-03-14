@@ -504,7 +504,15 @@ async def admin_get_categories(token: str):
 @app.post("/admin/categories", status_code=201)
 async def admin_create_category(token: str, data: CategoryCreate):
     check_admin(token)
-    cat_id = re.sub(r'[^a-z0-9]', '_', data.name.lower())[:30].strip('_')
+    base_id = re.sub(r'[^a-z0-9]', '_', data.name.lower())[:25].strip('_')
+    if not base_id:
+        base_id = "cat"
+    # Гарантируем уникальность ID
+    cat_id = base_id
+    suffix = 1
+    while await database.fetch_one(categories_table.select().where(categories_table.c.id == cat_id)):
+        cat_id = f"{base_id}_{suffix}"
+        suffix += 1
     max_order = await database.fetch_val(select(func.max(categories_table.c.order_index)).select_from(categories_table)) or 0
     await database.execute(categories_table.insert().values(
         id=cat_id, name=data.name, image_data=data.image_data,

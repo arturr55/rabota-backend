@@ -615,8 +615,9 @@ async function addCategory() {
 
 async function deleteCat(id) {
   if (!confirm('Удалить категорию? Объявления в ней останутся.')) return;
-  await api('DELETE', `/admin/categories/${id}`);
-  toast('Удалено'); loadCategories();
+  const r = await api('DELETE', `/admin/categories/${id}`);
+  if (r.ok) { toast('Удалено'); } else { toast('Ошибка удаления', false); }
+  loadCategories();
 }
 
 async function moveCat(id, dir) {
