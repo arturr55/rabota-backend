@@ -46,6 +46,7 @@ listings_table = sqlalchemy.Table(
     sqlalchemy.Column("is_admin_post", sqlalchemy.Boolean, default=False),
     sqlalchemy.Column("expires_at", sqlalchemy.DateTime, nullable=True),
     sqlalchemy.Column("photo", sqlalchemy.Text, nullable=True),
+    sqlalchemy.Column("is_ad", sqlalchemy.Boolean, default=False),
 )
 
 settings_table = sqlalchemy.Table(
@@ -107,6 +108,7 @@ class ListingCreate(BaseModel):
     telegram: Optional[str] = None
     author_name: Optional[str] = None
     photo: Optional[str] = None
+    is_ad: bool = False
 
 class ListingEdit(BaseModel):
     text: Optional[str] = None
@@ -184,11 +186,15 @@ async def startup():
     # seed default settings
     if not await database.fetch_one(settings_table.select().where(settings_table.c.key == "moderation_enabled")):
         await database.execute(settings_table.insert().values(key="moderation_enabled", value="false"))
-    # migration: add photo column if missing
-    try:
-        await database.execute("ALTER TABLE listings ADD COLUMN photo TEXT")
-    except Exception:
-        pass
+    # migrations
+    for sql in [
+        "ALTER TABLE listings ADD COLUMN photo TEXT",
+        "ALTER TABLE listings ADD COLUMN is_ad BOOLEAN DEFAULT FALSE",
+    ]:
+        try:
+            await database.execute(sql)
+        except Exception:
+            pass
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -259,15 +265,41 @@ async def create_listing(data: ListingCreate):
             if bl:
                 raise HTTPException(status_code=403, detail="Заблокировано")
     moderation = (await get_setting("moderation_enabled", "false")) == "true"
+    needs_moderation = moderation or data.is_ad  # реклама всегда на модерацию
     listing_id = await database.execute(listings_table.insert().values(
         category_id=data.category_id, text=data.text.strip(),
         phone=data.phone, telegram=data.telegram, author_name=data.author_name,
-        photo=data.photo,
-        created_at=datetime.utcnow(), approved=not moderation, rejected=False,
+        photo=data.photo, is_ad=data.is_ad,
+        created_at=datetime.utcnow(), approved=not needs_moderation, rejected=False,
         pinned=False, vip=False, is_admin_post=False,
     ))
-    msg = "Объявление отправлено на модерацию" if moderation else "Объявление опубликовано"
+    msg = "Отправлено на модерацию" if needs_moderation else "Объявление опубликовано"
     return {"id": listing_id, "message": msg}
+
+@app.get("/search")
+async def search_listings(q: str = ""):
+    q = q.strip()
+    if len(q) < 2:
+        return []
+    now = datetime.utcnow()
+    rows = await database.fetch_all(
+        listings_table.select()
+        .where(listings_table.c.approved == True)
+        .where(listings_table.c.rejected == False)
+        .order_by(listings_table.c.created_at.desc())
+        .limit(100)
+    )
+    term = q.lower()
+    result = []
+    for r in rows:
+        d = row_to_dict(r)
+        if d.get("expires_at") and datetime.fromisoformat(d["expires_at"]) < now:
+            continue
+        if term in (d.get("text") or "").lower() or \
+           term in (d.get("author_name") or "").lower() or \
+           term in (d.get("phone") or "").lower():
+            result.append(d)
+    return result[:50]
 
 @app.post("/complaints", status_code=201)
 async def create_complaint(data: ComplaintCreate):
