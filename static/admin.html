@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Админ | Поговорим о работе</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+  :root { --accent: #2B5F8E; --sidebar-w: 240px; }
+  body { background: #f0f2f5; font-family: 'Segoe UI', sans-serif; }
+  #loginWrap { min-height:100vh; display:flex; align-items:center; justify-content:center; background: linear-gradient(135deg,#1a3a5c,#2B5F8E); }
+  .login-card { background:#fff; border-radius:16px; padding:40px; width:360px; box-shadow:0 20px 60px rgba(0,0,0,0.3); }
+  #appWrap { display:none; }
+  .sidebar { position:fixed; top:0; left:0; width:var(--sidebar-w); height:100vh; background:#1a2e45; overflow-y:auto; z-index:100; }
+  .sidebar-logo { padding:20px 16px 12px; border-bottom:1px solid #2a3f5a; }
+  .sidebar-logo h6 { color:#fff; font-weight:700; margin:0; font-size:14px; }
+  .sidebar-logo small { color:#7fa8c9; font-size:11px; }
+  .nav-item-s { display:block; padding:10px 16px; color:#a8c4d8; text-decoration:none; border-radius:8px; margin:2px 8px; cursor:pointer; transition:.2s; font-size:14px; }
+  .nav-item-s:hover { background:#2a3f5a; color:#fff; }
+  .nav-item-s.active { background:var(--accent); color:#fff; }
+  .nav-item-s i { width:20px; margin-right:8px; }
+  .badge-nav { float:right; background:#e74c3c; color:#fff; border-radius:10px; padding:1px 7px; font-size:11px; }
+  .main-content { margin-left:var(--sidebar-w); padding:24px; min-height:100vh; }
+  .section { display:none; }
+  .section.active { display:block; }
+  .stat-card { background:#fff; border-radius:12px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,.06); border-left:4px solid var(--accent); }
+  .stat-card h3 { font-size:32px; font-weight:700; color:var(--accent); margin:0; }
+  .stat-card p { margin:0; color:#666; font-size:13px; }
+  .card-panel { background:#fff; border-radius:12px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,.06); margin-bottom:20px; }
+  .listing-row { border:1px solid #e8ecf0; border-radius:10px; padding:14px; margin-bottom:10px; background:#fff; transition:.2s; }
+  .listing-row:hover { border-color:#2B5F8E; box-shadow:0 2px 8px rgba(43,95,142,.1); }
+  .listing-row.vip { border-left:4px solid #f39c12; background:#fffef7; }
+  .listing-row.pinned { border-left:4px solid #27ae60; }
+  .listing-row.admin { border-left:4px solid var(--accent); }
+  .badge-vip { background:#f39c12; color:#fff; font-size:11px; padding:2px 8px; border-radius:10px; }
+  .badge-pin { background:#27ae60; color:#fff; font-size:11px; padding:2px 8px; border-radius:10px; }
+  .badge-admin { background:var(--accent); color:#fff; font-size:11px; padding:2px 8px; border-radius:10px; }
+  .badge-pending { background:#e67e22; color:#fff; font-size:11px; padding:2px 8px; border-radius:10px; }
+  .badge-rejected { background:#e74c3c; color:#fff; font-size:11px; padding:2px 8px; border-radius:10px; }
+  .action-btn { border:none; background:none; padding:4px 8px; border-radius:6px; cursor:pointer; font-size:16px; transition:.15s; }
+  .action-btn:hover { background:#f0f2f5; }
+  .action-btn.approve { color:#27ae60; } .action-btn.approve:hover { background:#eafaf1; }
+  .action-btn.reject  { color:#e74c3c; } .action-btn.reject:hover  { background:#fdf0ee; }
+  .action-btn.delete  { color:#e74c3c; } .action-btn.delete:hover  { background:#fdf0ee; }
+  .action-btn.pin     { color:#27ae60; }
+  .action-btn.vip     { color:#f39c12; }
+  .action-btn.edit    { color:#3498db; }
+  .cat-row { display:flex; align-items:center; gap:12px; background:#fff; border:1px solid #e8ecf0; border-radius:10px; padding:12px 16px; margin-bottom:8px; }
+  .cat-row img { width:40px; height:40px; border-radius:8px; object-fit:cover; }
+  .cat-icon-placeholder { width:40px; height:40px; border-radius:8px; background:#e8ecf0; display:flex; align-items:center; justify-content:center; color:#999; font-size:20px; }
+  .cat-name { flex:1; font-weight:500; }
+  .inactive-badge { background:#95a5a6; color:#fff; font-size:11px; padding:2px 8px; border-radius:10px; }
+  .toast-container { position:fixed; bottom:20px; right:20px; z-index:9999; }
+  .filter-bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; align-items:center; }
+  .filter-bar input, .filter-bar select { border-radius:8px; border:1px solid #dde2e8; padding:6px 12px; font-size:14px; outline:none; }
+  .filter-bar input:focus, .filter-bar select:focus { border-color:var(--accent); }
+  .section-title { font-size:20px; font-weight:700; color:#1a2e45; margin-bottom:20px; }
+  .empty-state { text-align:center; padding:60px 20px; color:#aaa; }
+  .empty-state i { font-size:48px; display:block; margin-bottom:12px; }
+  .modal-header { background:var(--accent); color:#fff; border-radius:12px 12px 0 0; }
+  .modal-header .btn-close { filter:invert(1); }
+  .contact-chip { display:inline-flex; align-items:center; gap:4px; background:#f0f4f8; border-radius:20px; padding:3px 10px; font-size:12px; color:var(--accent); margin:2px; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginWrap">
+  <div class="login-card text-center">
+    <i class="bi bi-briefcase-fill" style="font-size:48px;color:var(--accent)"></i>
+    <h5 class="mt-3 mb-1 fw-bold">Поговорим о работе</h5>
+    <p class="text-muted small mb-4">Панель администратора</p>
+    <input id="tokenInput" type="password" class="form-control mb-3" placeholder="Введите токен доступа" onkeydown="if(event.key==='Enter')login()">
+    <button class="btn btn-primary w-100" style="background:var(--accent);border:none" onclick="login()">Войти</button>
+    <p id="loginError" class="text-danger small mt-2" style="display:none">Неверный токен</p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appWrap">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <h6><i class="bi bi-briefcase-fill me-2"></i>Поговорим о работе</h6>
+      <small>Панель администратора</small>
+    </div>
+    <div class="mt-2">
+      <a class="nav-item-s active" onclick="showSection('dashboard')"><i class="bi bi-speedometer2"></i>Дашборд</a>
+      <a class="nav-item-s" onclick="showSection('pending')" id="navPending"><i class="bi bi-clock-history"></i>На модерации <span class="badge-nav" id="pendingCount" style="display:none">0</span></a>
+      <a class="nav-item-s" onclick="showSection('listings')"><i class="bi bi-list-ul"></i>Объявления</a>
+      <a class="nav-item-s" onclick="showSection('categories')"><i class="bi bi-grid-3x3-gap"></i>Категории</a>
+      <a class="nav-item-s" onclick="showSection('post')"><i class="bi bi-pencil-square"></i>Публикация</a>
+      <a class="nav-item-s" onclick="showSection('blacklist')"><i class="bi bi-slash-circle"></i>Чёрный список</a>
+      <a class="nav-item-s" onclick="showSection('complaints')" id="navComplaints"><i class="bi bi-exclamation-triangle"></i>Жалобы <span class="badge-nav" id="complaintsCount" style="display:none">0</span></a>
+    </div>
+    <div class="mt-auto p-3" style="position:absolute;bottom:0;left:0;right:0">
+      <button class="btn btn-sm w-100" style="background:#2a3f5a;color:#a8c4d8;border:none" onclick="logout()"><i class="bi bi-box-arrow-left me-1"></i>Выйти</button>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="main-content">
+
+    <!-- DASHBOARD -->
+    <div id="sectionDashboard" class="section active">
+      <div class="section-title"><i class="bi bi-speedometer2 me-2"></i>Дашборд</div>
+      <div class="row g-3 mb-4">
+        <div class="col-6 col-md-4 col-lg-2"><div class="stat-card"><h3 id="statPending">—</h3><p>На модерации</p></div></div>
+        <div class="col-6 col-md-4 col-lg-2"><div class="stat-card" style="border-color:#27ae60"><h3 id="statApproved" style="color:#27ae60">—</h3><p>Одобрено</p></div></div>
+        <div class="col-6 col-md-4 col-lg-2"><div class="stat-card" style="border-color:#e74c3c"><h3 id="statRejected" style="color:#e74c3c">—</h3><p>Отклонено</p></div></div>
+        <div class="col-6 col-md-4 col-lg-2"><div class="stat-card" style="border-color:#8e44ad"><h3 id="statTotal" style="color:#8e44ad">—</h3><p>Всего</p></div></div>
+        <div class="col-6 col-md-4 col-lg-2"><div class="stat-card" style="border-color:#16a085"><h3 id="statCats" style="color:#16a085">—</h3><p>Категорий</p></div></div>
+        <div class="col-6 col-md-4 col-lg-2"><div class="stat-card" style="border-color:#e67e22"><h3 id="statComplaints" style="color:#e67e22">—</h3><p>Жалоб</p></div></div>
+      </div>
+      <div class="card-panel">
+        <h6 class="fw-bold mb-3">Последние объявления на модерации</h6>
+        <div id="dashPending"></div>
+      </div>
+    </div>
+
+    <!-- PENDING -->
+    <div id="sectionPending" class="section">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="section-title mb-0"><i class="bi bi-clock-history me-2"></i>На модерации</div>
+        <button class="btn btn-sm" style="background:var(--accent);color:#fff" onclick="loadPending()"><i class="bi bi-arrow-clockwise me-1"></i>Обновить</button>
+      </div>
+      <div id="pendingList"></div>
+    </div>
+
+    <!-- LISTINGS -->
+    <div id="sectionListings" class="section">
+      <div class="section-title"><i class="bi bi-list-ul me-2"></i>Все объявления</div>
+      <div class="filter-bar">
+        <select id="filterStatus" onchange="loadListings()">
+          <option value="all">Все статусы</option>
+          <option value="pending">На модерации</option>
+          <option value="approved">Одобренные</option>
+          <option value="rejected">Отклонённые</option>
+        </select>
+        <select id="filterCategory" onchange="loadListings()"><option value="">Все категории</option></select>
+        <input id="filterSearch" placeholder="Поиск..." oninput="loadListings()" style="width:220px">
+        <button class="btn btn-sm" style="background:var(--accent);color:#fff" onclick="loadListings()"><i class="bi bi-search"></i></button>
+      </div>
+      <div id="listingsList"></div>
+    </div>
+
+    <!-- CATEGORIES -->
+    <div id="sectionCategories" class="section">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="section-title mb-0"><i class="bi bi-grid-3x3-gap me-2"></i>Категории</div>
+        <button class="btn btn-sm" style="background:var(--accent);color:#fff" data-bs-toggle="modal" data-bs-target="#modalAddCat"><i class="bi bi-plus-lg me-1"></i>Добавить</button>
+      </div>
+      <div id="categoriesList"></div>
+    </div>
+
+    <!-- POST -->
+    <div id="sectionPost" class="section">
+      <div class="section-title"><i class="bi bi-pencil-square me-2"></i>Публикация от администрации</div>
+      <div class="card-panel" style="max-width:680px">
+        <div class="mb-3">
+          <label class="form-label fw-500">Категории *</label>
+          <div class="mb-2">
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="checkbox" id="catAll" onchange="toggleAllCats(this)">
+              <label class="form-check-label fw-bold" for="catAll">Все категории</label>
+            </div>
+          </div>
+          <div id="postCatCheckboxes" class="d-flex flex-wrap gap-2"></div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-500">Текст объявления *</label>
+          <textarea id="postText" class="form-control" rows="6" placeholder="Текст вакансии или объявления..."></textarea>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-md-6">
+            <input id="postPhone" class="form-control" placeholder="Телефон">
+          </div>
+          <div class="col-md-6">
+            <input id="postTelegram" class="form-control" placeholder="Telegram (@username)">
+          </div>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-md-6">
+            <input id="postAuthor" class="form-control" placeholder="Имя (по умолчанию: Администрация)">
+          </div>
+          <div class="col-md-6">
+            <input id="postExpires" class="form-control" type="date" title="Дата окончания (необязательно)">
+          </div>
+        </div>
+        <div class="d-flex gap-3 mb-4">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="postPinned">
+            <label class="form-check-label" for="postPinned"><span class="badge-pin">📌 Закрепить</span></label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="postVip">
+            <label class="form-check-label" for="postVip"><span class="badge-vip">⭐ VIP</span></label>
+          </div>
+        </div>
+        <button class="btn w-100" style="background:var(--accent);color:#fff" onclick="submitAdminPost()">
+          <i class="bi bi-send-fill me-2"></i>Опубликовать
+        </button>
+      </div>
+    </div>
+
+    <!-- BLACKLIST -->
+    <div id="sectionBlacklist" class="section">
+      <div class="section-title"><i class="bi bi-slash-circle me-2"></i>Чёрный список</div>
+      <div class="card-panel" style="max-width:580px;margin-bottom:20px">
+        <h6 class="fw-bold mb-3">Добавить в чёрный список</h6>
+        <div class="input-group mb-2">
+          <input id="blValue" class="form-control" placeholder="Телефон или @telegram">
+          <button class="btn" style="background:var(--accent);color:#fff" onclick="addBlacklist()"><i class="bi bi-plus-lg"></i></button>
+        </div>
+        <input id="blReason" class="form-control" placeholder="Причина (необязательно)">
+      </div>
+      <div id="blacklistList"></div>
+    </div>
+
+    <!-- COMPLAINTS -->
+    <div id="sectionComplaints" class="section">
+      <div class="section-title"><i class="bi bi-exclamation-triangle me-2"></i>Жалобы</div>
+      <div id="complaintsList"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal: Add Category -->
+<div class="modal fade" id="modalAddCat" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header">
+      <h5 class="modal-title fw-bold">Новая категория</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    </div>
+    <div class="modal-body">
+      <div class="mb-3"><label class="form-label">Название *</label><input id="newCatName" class="form-control" placeholder="Название категории"></div>
+      <div class="mb-3"><label class="form-label">Картинка (необязательно)</label><input id="newCatImg" type="file" class="form-control" accept="image/*" onchange="previewImg(this,'newCatPreview')"><img id="newCatPreview" style="display:none;max-width:100%;border-radius:8px;margin-top:8px"></div>
+    </div>
+    <div class="modal-footer"><button class="btn" style="background:var(--accent);color:#fff" onclick="addCategory()">Создать</button></div>
+  </div></div>
+</div>
+
+<!-- Modal: Edit Category -->
+<div class="modal fade" id="modalEditCat" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header">
+      <h5 class="modal-title fw-bold">Редактировать категорию</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editCatId">
+      <div class="mb-3"><label class="form-label">Название</label><input id="editCatName" class="form-control"></div>
+      <div class="mb-3"><label class="form-label">Новая картинка (необязательно)</label><input id="editCatImg" type="file" class="form-control" accept="image/*" onchange="previewImg(this,'editCatPreview')"><img id="editCatPreview" style="display:none;max-width:100%;border-radius:8px;margin-top:8px"></div>
+      <div class="form-check"><input class="form-check-input" type="checkbox" id="editCatActive"><label class="form-check-label" for="editCatActive">Активна</label></div>
+    </div>
+    <div class="modal-footer"><button class="btn" style="background:var(--accent);color:#fff" onclick="saveCategory()">Сохранить</button></div>
+  </div></div>
+</div>
+
+<!-- Modal: Edit Listing -->
+<div class="modal fade" id="modalEditListing" tabindex="-1">
+  <div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header">
+      <h5 class="modal-title fw-bold">Редактировать объявление</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editListingId">
+      <div class="mb-3"><label class="form-label">Текст</label><textarea id="editListingText" class="form-control" rows="6"></textarea></div>
+      <div class="row g-2 mb-3">
+        <div class="col-md-4"><input id="editListingAuthor" class="form-control" placeholder="Автор"></div>
+        <div class="col-md-4"><input id="editListingPhone" class="form-control" placeholder="Телефон"></div>
+        <div class="col-md-4"><input id="editListingTg" class="form-control" placeholder="Telegram"></div>
+      </div>
+      <div><label class="form-label">Дата окончания (необязательно)</label><input id="editListingExpires" class="form-control" type="date"></div>
+    </div>
+    <div class="modal-footer"><button class="btn" style="background:var(--accent);color:#fff" onclick="saveListing()">Сохранить</button></div>
+  </div></div>
+</div>
+
+<!-- Toast -->
+<div class="toast-container">
+  <div id="toastEl" class="toast align-items-center text-white border-0" role="alert">
+    <div class="d-flex">
+      <div class="toast-body" id="toastMsg"></div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const API = '';
+let TOKEN = '';
+let allCategories = [];
+
+function getToken() { return localStorage.getItem('adminToken') || ''; }
+
+async function login() {
+  const t = document.getElementById('tokenInput').value.trim();
+  const r = await fetch(`${API}/admin/stats?token=${t}`);
+  if (r.ok) {
+    TOKEN = t;
+    localStorage.setItem('adminToken', t);
+    document.getElementById('loginWrap').style.display = 'none';
+    document.getElementById('appWrap').style.display = 'block';
+    init();
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+  }
+}
+
+function logout() {
+  localStorage.removeItem('adminToken');
+  location.reload();
+}
+
+async function init() {
+  TOKEN = getToken();
+  if (!TOKEN) return;
+  await loadStats();
+  await loadCategories();
+  await loadPending();
+  populateCategoryFilter();
+  populatePostCategories();
+}
+
+window.onload = () => {
+  TOKEN = getToken();
+  if (TOKEN) {
+    document.getElementById('loginWrap').style.display = 'none';
+    document.getElementById('appWrap').style.display = 'block';
+    init();
+  }
+};
+
+function showSection(name) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item-s').forEach(s => s.classList.remove('active'));
+  document.getElementById('section' + name.charAt(0).toUpperCase() + name.slice(1)).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (name === 'pending') loadPending();
+  if (name === 'listings') loadListings();
+  if (name === 'categories') loadCategories();
+  if (name === 'blacklist') loadBlacklist();
+  if (name === 'complaints') loadComplaints();
+  if (name === 'dashboard') { loadStats(); loadPending(); }
+}
+
+async function api(method, path, body) {
+  const sep = path.includes('?') ? '&' : '?';
+  const url = `${API}${path}${sep}token=${TOKEN}`;
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(url, opts);
+  return r;
+}
+
+function toast(msg, ok = true) {
+  const el = document.getElementById('toastEl');
+  el.className = `toast align-items-center text-white border-0 ${ok ? 'bg-success' : 'bg-danger'}`;
+  document.getElementById('toastMsg').textContent = msg;
+  new bootstrap.Toast(el, { delay: 2500 }).show();
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+async function loadStats() {
+  const r = await api('GET', '/admin/stats');
+  if (!r.ok) return;
+  const d = await r.json();
+  document.getElementById('statPending').textContent   = d.pending;
+  document.getElementById('statApproved').textContent  = d.approved;
+  document.getElementById('statRejected').textContent  = d.rejected;
+  document.getElementById('statTotal').textContent     = d.total;
+  document.getElementById('statCats').textContent      = d.categories;
+  document.getElementById('statComplaints').textContent= d.complaints;
+  const pc = document.getElementById('pendingCount');
+  if (d.pending > 0) { pc.style.display = 'inline'; pc.textContent = d.pending; } else { pc.style.display = 'none'; }
+  const cc = document.getElementById('complaintsCount');
+  if (d.complaints > 0) { cc.style.display = 'inline'; cc.textContent = d.complaints; } else { cc.style.display = 'none'; }
+}
+
+// ── Pending ───────────────────────────────────────────────────────────────────
+async function loadPending() {
+  const r = await api('GET', '/admin/pending');
+  if (!r.ok) return;
+  const items = await r.json();
+  const dashEl = document.getElementById('dashPending');
+  const listEl = document.getElementById('pendingList');
+  const html = items.length === 0
+    ? '<div class="empty-state"><i class="bi bi-check-circle"></i>Нет объявлений на модерации</div>'
+    : items.map(renderListing).join('');
+  if (dashEl) dashEl.innerHTML = items.length === 0 ? '<p class="text-muted">Нет объявлений</p>' : items.slice(0,3).map(renderListing).join('');
+  if (listEl) listEl.innerHTML = html;
+}
+
+// ── Listings ──────────────────────────────────────────────────────────────────
+async function loadListings() {
+  const status   = document.getElementById('filterStatus')?.value || 'all';
+  const category = document.getElementById('filterCategory')?.value || '';
+  const search   = document.getElementById('filterSearch')?.value || '';
+  const r = await api('GET', `/admin/listings?status=${status}&category_id=${category}&search=${encodeURIComponent(search)}`);
+  if (!r.ok) return;
+  const items = await r.json();
+  document.getElementById('listingsList').innerHTML = items.length === 0
+    ? '<div class="empty-state"><i class="bi bi-inbox"></i>Ничего не найдено</div>'
+    : items.map(renderListing).join('');
+}
+
+function renderListing(l) {
+  const dt = new Date(l.created_at).toLocaleString('ru');
+  let badges = '';
+  if (l.pinned) badges += '<span class="badge-pin">📌 Закреплено</span> ';
+  if (l.vip) badges += '<span class="badge-vip">⭐ VIP</span> ';
+  if (l.is_admin_post) badges += '<span class="badge-admin">🛡 Администрация</span> ';
+  if (!l.approved && !l.rejected) badges += '<span class="badge-pending">⏳ Модерация</span> ';
+  if (l.rejected) badges += '<span class="badge-rejected">✕ Отклонено</span> ';
+
+  const contacts = [
+    l.phone ? `<span class="contact-chip"><i class="bi bi-phone"></i>${l.phone}</span>` : '',
+    l.telegram ? `<span class="contact-chip"><i class="bi bi-telegram"></i>${l.telegram}</span>` : '',
+  ].join('');
+
+  const cls = [l.vip?'vip':'', l.pinned?'pinned':'', l.is_admin_post?'admin':''].filter(Boolean).join(' ');
+
+  return `<div class="listing-row ${cls}" id="listing-${l.id}">
+    <div class="d-flex justify-content-between align-items-start">
+      <div style="flex:1;min-width:0">
+        <div class="mb-1">${badges}</div>
+        <div style="font-size:13px;color:#888">${l.author_name || 'Аноним'} · ${dt} · <b>${l.category_id}</b></div>
+        <div class="mt-1" style="white-space:pre-wrap;font-size:14px">${escHtml(l.text)}</div>
+        <div class="mt-2">${contacts}</div>
+      </div>
+      <div class="ms-3 d-flex flex-column gap-1" style="min-width:36px">
+        ${!l.approved && !l.rejected ? `<button class="action-btn approve" onclick="approveListing(${l.id})" title="Одобрить"><i class="bi bi-check-lg"></i></button>` : ''}
+        ${!l.rejected ? `<button class="action-btn reject" onclick="rejectListing(${l.id})" title="Отклонить"><i class="bi bi-x-lg"></i></button>` : ''}
+        <button class="action-btn pin" onclick="togglePin(${l.id},${!l.pinned})" title="${l.pinned?'Открепить':'Закрепить'}"><i class="bi bi-pin${l.pinned?'-fill':''}"></i></button>
+        <button class="action-btn vip" onclick="toggleVip(${l.id},${!l.vip})" title="${l.vip?'Снять VIP':'Дать VIP'}"><i class="bi bi-star${l.vip?'-fill':''}"></i></button>
+        <button class="action-btn edit" onclick="editListing(${JSON.stringify(l).replace(/"/g,'&quot;')})" title="Редактировать"><i class="bi bi-pencil"></i></button>
+        <button class="action-btn delete" onclick="deleteListing(${l.id})" title="Удалить"><i class="bi bi-trash"></i></button>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function approveListing(id) {
+  await api('PATCH', `/admin/listings/${id}/approve`);
+  toast('Одобрено'); refresh();
+}
+async function rejectListing(id) {
+  await api('PATCH', `/admin/listings/${id}/reject`);
+  toast('Отклонено'); refresh();
+}
+async function deleteListing(id) {
+  if (!confirm('Удалить объявление?')) return;
+  await api('DELETE', `/admin/listings/${id}`);
+  toast('Удалено'); refresh();
+}
+async function togglePin(id, val) {
+  await api('PATCH', `/admin/listings/${id}/pin?pinned=${val}`);
+  toast(val ? 'Закреплено' : 'Откреплено'); refresh();
+}
+async function toggleVip(id, val) {
+  await api('PATCH', `/admin/listings/${id}/vip?vip=${val}`);
+  toast(val ? 'VIP включён' : 'VIP снят'); refresh();
+}
+
+function editListing(l) {
+  document.getElementById('editListingId').value    = l.id;
+  document.getElementById('editListingText').value  = l.text;
+  document.getElementById('editListingAuthor').value= l.author_name || '';
+  document.getElementById('editListingPhone').value = l.phone || '';
+  document.getElementById('editListingTg').value    = l.telegram || '';
+  document.getElementById('editListingExpires').value = l.expires_at ? l.expires_at.slice(0,10) : '';
+  new bootstrap.Modal(document.getElementById('modalEditListing')).show();
+}
+
+async function saveListing() {
+  const id = document.getElementById('editListingId').value;
+  const expires = document.getElementById('editListingExpires').value;
+  await api('PATCH', `/admin/listings/${id}`, {
+    text:        document.getElementById('editListingText').value,
+    author_name: document.getElementById('editListingAuthor').value,
+    phone:       document.getElementById('editListingPhone').value,
+    telegram:    document.getElementById('editListingTg').value,
+    expires_at:  expires ? expires + 'T23:59:59' : null,
+  });
+  bootstrap.Modal.getInstance(document.getElementById('modalEditListing')).hide();
+  toast('Сохранено'); refresh();
+}
+
+function refresh() {
+  const active = document.querySelector('.section.active');
+  if (!active) return;
+  const id = active.id;
+  if (id === 'sectionPending') loadPending();
+  if (id === 'sectionListings') loadListings();
+  if (id === 'sectionDashboard') { loadStats(); loadPending(); }
+  loadStats();
+}
+
+// ── Categories ────────────────────────────────────────────────────────────────
+async function loadCategories() {
+  const r = await api('GET', '/admin/categories');
+  if (!r.ok) return;
+  allCategories = await r.json();
+  const el = document.getElementById('categoriesList');
+  if (!el) return;
+  el.innerHTML = allCategories.map((c, i) => `
+    <div class="cat-row">
+      <div class="d-flex flex-column gap-1">
+        <button class="action-btn" style="padding:2px 6px;font-size:12px" onclick="moveCat('${c.id}',-1)" ${i===0?'disabled':''}><i class="bi bi-chevron-up"></i></button>
+        <button class="action-btn" style="padding:2px 6px;font-size:12px" onclick="moveCat('${c.id}',1)" ${i===allCategories.length-1?'disabled':''}><i class="bi bi-chevron-down"></i></button>
+      </div>
+      ${c.image_data ? `<img src="${c.image_data}" alt="">` : `<div class="cat-icon-placeholder"><i class="bi bi-folder"></i></div>`}
+      <div class="cat-name">${escHtml(c.name)} ${!c.active ? '<span class="inactive-badge">скрыта</span>' : ''}</div>
+      <div class="d-flex gap-1">
+        <button class="action-btn edit" onclick='openEditCat(${JSON.stringify(c).replace(/'/g,"\\'")})'><i class="bi bi-pencil"></i></button>
+        <button class="action-btn delete" onclick="deleteCat('${c.id}')"><i class="bi bi-trash"></i></button>
+      </div>
+    </div>`).join('');
+  populateCategoryFilter();
+  populatePostCategories();
+}
+
+function openEditCat(c) {
+  document.getElementById('editCatId').value   = c.id;
+  document.getElementById('editCatName').value = c.name;
+  document.getElementById('editCatActive').checked = c.active;
+  document.getElementById('editCatPreview').style.display = 'none';
+  new bootstrap.Modal(document.getElementById('modalEditCat')).show();
+}
+
+async function saveCategory() {
+  const id   = document.getElementById('editCatId').value;
+  const name = document.getElementById('editCatName').value.trim();
+  const active = document.getElementById('editCatActive').checked;
+  const imgData = await getImgData('editCatImg');
+  const body = { name, active };
+  if (imgData) body.image_data = imgData;
+  await api('PATCH', `/admin/categories/${id}`, body);
+  bootstrap.Modal.getInstance(document.getElementById('modalEditCat')).hide();
+  toast('Категория обновлена'); loadCategories();
+}
+
+async function addCategory() {
+  const name = document.getElementById('newCatName').value.trim();
+  if (!name) { toast('Введите название', false); return; }
+  const imgData = await getImgData('newCatImg');
+  await api('POST', '/admin/categories', { name, image_data: imgData || null });
+  bootstrap.Modal.getInstance(document.getElementById('modalAddCat')).hide();
+  document.getElementById('newCatName').value = '';
+  toast('Категория создана'); loadCategories();
+}
+
+async function deleteCat(id) {
+  if (!confirm('Удалить категорию? Объявления в ней останутся.')) return;
+  await api('DELETE', `/admin/categories/${id}`);
+  toast('Удалено'); loadCategories();
+}
+
+async function moveCat(id, dir) {
+  const idx = allCategories.findIndex(c => c.id === id);
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= allCategories.length) return;
+  const other = allCategories[newIdx];
+  await api('PATCH', `/admin/categories/${id}`, { order_index: other.order_index });
+  await api('PATCH', `/admin/categories/${other.id}`, { order_index: allCategories[idx].order_index });
+  loadCategories();
+}
+
+function populateCategoryFilter() {
+  const sel = document.getElementById('filterCategory');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Все категории</option>' +
+    allCategories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+}
+
+function populatePostCategories() {
+  const el = document.getElementById('postCatCheckboxes');
+  if (!el) return;
+  el.innerHTML = allCategories.map(c => `
+    <div class="form-check form-check-inline">
+      <input class="form-check-input post-cat" type="checkbox" id="pcat_${c.id}" value="${c.id}">
+      <label class="form-check-label" for="pcat_${c.id}">${escHtml(c.name)}</label>
+    </div>`).join('');
+}
+
+function toggleAllCats(cb) {
+  document.querySelectorAll('.post-cat').forEach(el => el.checked = cb.checked);
+}
+
+// ── Admin post ────────────────────────────────────────────────────────────────
+async function submitAdminPost() {
+  const text = document.getElementById('postText').value.trim();
+  if (!text) { toast('Введите текст', false); return; }
+  let ids = [...document.querySelectorAll('.post-cat:checked')].map(el => el.value);
+  if (document.getElementById('catAll').checked) ids = ['all'];
+  if (!ids.length) { toast('Выберите категории', false); return; }
+  const expires = document.getElementById('postExpires').value;
+  await api('POST', '/admin/post', {
+    category_ids: ids,
+    text,
+    phone:    document.getElementById('postPhone').value || null,
+    telegram: document.getElementById('postTelegram').value || null,
+    author_name: document.getElementById('postAuthor').value || null,
+    pinned: document.getElementById('postPinned').checked,
+    vip:    document.getElementById('postVip').checked,
+    expires_at: expires ? expires + 'T23:59:59' : null,
+  });
+  document.getElementById('postText').value = '';
+  document.getElementById('postPhone').value = '';
+  document.getElementById('postTelegram').value = '';
+  document.getElementById('postAuthor').value = '';
+  document.getElementById('postExpires').value = '';
+  document.getElementById('postPinned').checked = false;
+  document.getElementById('postVip').checked = false;
+  document.getElementById('catAll').checked = false;
+  document.querySelectorAll('.post-cat').forEach(el => el.checked = false);
+  toast(`Опубликовано в ${ids.includes('all') ? 'всех' : ids.length} категориях`);
+}
+
+// ── Blacklist ─────────────────────────────────────────────────────────────────
+async function loadBlacklist() {
+  const r = await api('GET', '/admin/blacklist');
+  if (!r.ok) return;
+  const items = await r.json();
+  document.getElementById('blacklistList').innerHTML = items.length === 0
+    ? '<div class="empty-state"><i class="bi bi-check-circle"></i>Список пуст</div>'
+    : items.map(b => `<div class="listing-row d-flex align-items-center gap-3">
+        <i class="bi bi-slash-circle text-danger"></i>
+        <div style="flex:1"><b>${escHtml(b.value)}</b>${b.reason ? ` — ${escHtml(b.reason)}` : ''}<br><small class="text-muted">${new Date(b.created_at).toLocaleString('ru')}</small></div>
+        <button class="action-btn delete" onclick="removeBlacklist(${b.id})"><i class="bi bi-trash"></i></button>
+      </div>`).join('');
+}
+
+async function addBlacklist() {
+  const val = document.getElementById('blValue').value.trim();
+  if (!val) { toast('Введите значение', false); return; }
+  await api('POST', '/admin/blacklist', { value: val, reason: document.getElementById('blReason').value });
+  document.getElementById('blValue').value = '';
+  document.getElementById('blReason').value = '';
+  toast('Добавлено в чёрный список'); loadBlacklist();
+}
+
+async function removeBlacklist(id) {
+  await api('DELETE', `/admin/blacklist/${id}`);
+  toast('Удалено'); loadBlacklist();
+}
+
+// ── Complaints ────────────────────────────────────────────────────────────────
+async function loadComplaints() {
+  const r = await api('GET', '/admin/complaints');
+  if (!r.ok) return;
+  const items = await r.json();
+  document.getElementById('complaintsList').innerHTML = items.length === 0
+    ? '<div class="empty-state"><i class="bi bi-emoji-smile"></i>Жалоб нет</div>'
+    : items.map(c => `<div class="listing-row d-flex align-items-center gap-3">
+        <i class="bi bi-exclamation-triangle text-warning fs-4"></i>
+        <div style="flex:1">Объявление #${c.listing_id}${c.reason ? ` — ${escHtml(c.reason)}` : ''}<br><small class="text-muted">${new Date(c.created_at).toLocaleString('ru')}</small></div>
+        <button class="btn btn-sm btn-outline-danger" onclick="deleteListing(${c.listing_id})"><i class="bi bi-trash me-1"></i>Удалить объявление</button>
+        <button class="action-btn delete" onclick="deleteComplaint(${c.id})" title="Закрыть жалобу"><i class="bi bi-x-lg"></i></button>
+      </div>`).join('');
+}
+
+async function deleteComplaint(id) {
+  await api('DELETE', `/admin/complaints/${id}`);
+  toast('Жалоба закрыта'); loadComplaints(); loadStats();
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function previewImg(input, previewId) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = document.getElementById(previewId);
+    img.src = e.target.result;
+    img.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+
+function getImgData(inputId) {
+  return new Promise(resolve => {
+    const file = document.getElementById(inputId)?.files[0];
+    if (!file) { resolve(null); return; }
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.readAsDataURL(file);
+  });
+}
+</script>
+</body>
+</html>
