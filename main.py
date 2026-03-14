@@ -47,6 +47,7 @@ listings_table = sqlalchemy.Table(
     sqlalchemy.Column("expires_at", sqlalchemy.DateTime, nullable=True),
     sqlalchemy.Column("photo", sqlalchemy.Text, nullable=True),
     sqlalchemy.Column("is_ad", sqlalchemy.Boolean, default=False),
+    sqlalchemy.Column("views", sqlalchemy.Integer, default=0),
 )
 
 settings_table = sqlalchemy.Table(
@@ -191,13 +192,19 @@ async def startup():
                 order_index=cat["order_index"], active=True, created_at=datetime.utcnow(),
             ))
     # seed default settings
-    for key, val in [("moderation_enabled", "false"), ("rate_limit_per_hour", "10")]:
+    for key, val in [
+        ("moderation_enabled", "false"),
+        ("rate_limit_per_hour", "10"),
+        ("max_listing_chars", "500"),
+        ("default_theme", "light"),
+    ]:
         if not await database.fetch_one(settings_table.select().where(settings_table.c.key == key)):
             await database.execute(settings_table.insert().values(key=key, value=val))
     # migrations
     for sql in [
         "ALTER TABLE listings ADD COLUMN photo TEXT",
         "ALTER TABLE listings ADD COLUMN is_ad BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE listings ADD COLUMN views INTEGER DEFAULT 0",
     ]:
         try:
             await database.execute(sql)
@@ -271,8 +278,12 @@ async def get_listings(category_id: str, limit: int = 20, offset: int = 0):
 
 @app.post("/listings", status_code=201)
 async def create_listing(request: Request, data: ListingCreate):
-    if len(data.text.strip()) < 10:
+    text = data.text.strip()
+    if len(text) < 10:
         raise HTTPException(status_code=400, detail="Текст слишком короткий")
+    max_chars = int(await get_setting("max_listing_chars", "500"))
+    if max_chars > 0 and len(text) > max_chars:
+        raise HTTPException(status_code=400, detail=f"Текст слишком длинный (максимум {max_chars} символов)")
     for val in [data.phone, data.telegram]:
         if val:
             bl = await database.fetch_one(blacklist_table.select().where(blacklist_table.c.value == val))
@@ -315,6 +326,32 @@ async def get_listing(listing_id: int):
     if not row:
         raise HTTPException(status_code=404, detail="Не найдено")
     return row_to_dict(row)
+
+@app.get("/app-settings")
+async def app_settings():
+    """Публичные настройки приложения для клиента"""
+    rows = await database.fetch_all(settings_table.select())
+    d = {r["key"]: r["value"] for r in rows}
+    return {
+        "default_theme":    d.get("default_theme", "light"),
+        "max_listing_chars": int(d.get("max_listing_chars", "500")),
+    }
+
+@app.post("/listing/{listing_id}/view", status_code=200)
+async def track_view(listing_id: int):
+    """Засчитать просмотр рекламного объявления"""
+    row = await database.fetch_one(
+        listings_table.select()
+        .where(listings_table.c.id == listing_id)
+        .where(listings_table.c.is_ad == True)
+    )
+    if row:
+        await database.execute(
+            listings_table.update()
+            .where(listings_table.c.id == listing_id)
+            .values(views=(row["views"] or 0) + 1)
+        )
+    return {"ok": True}
 
 @app.get("/search")
 async def search_listings(q: str = ""):

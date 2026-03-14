@@ -243,6 +243,31 @@
       </div>
 
       <div class="card-panel mt-3" style="max-width:500px">
+        <h6 class="fw-bold mb-3">Максимум символов в объявлении</h6>
+        <div class="p-3" style="background:#f8f9fa;border-radius:10px;border:1px solid #e0e0e0">
+          <div class="fw-500 mb-1">Лимит символов в тексте объявления</div>
+          <small class="text-muted d-block mb-3">0 = без лимита. По умолчанию: 500.</small>
+          <div class="input-group" style="max-width:200px">
+            <input type="number" id="inputMaxChars" class="form-control" min="0" max="10000" placeholder="500">
+            <button class="btn" style="background:var(--accent);color:#fff" onclick="saveMaxChars()">Сохранить</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-panel mt-3" style="max-width:500px">
+        <h6 class="fw-bold mb-3">Тема приложения по умолчанию</h6>
+        <div class="d-flex align-items-center justify-content-between p-3" style="background:#f8f9fa;border-radius:10px;border:1px solid #e0e0e0">
+          <div>
+            <div class="fw-500">Тёмная тема по умолчанию</div>
+            <small class="text-muted">Применяется при первом запуске у новых пользователей</small>
+          </div>
+          <div class="form-check form-switch ms-3 mb-0">
+            <input class="form-check-input" type="checkbox" role="switch" id="switchDarkTheme" style="width:3em;height:1.5em;cursor:pointer" onchange="saveDarkTheme()">
+          </div>
+        </div>
+      </div>
+
+      <div class="card-panel mt-3" style="max-width:500px">
         <h6 class="fw-bold mb-3">Лимит объявлений</h6>
         <div class="p-3" style="background:#f8f9fa;border-radius:10px;border:1px solid #e0e0e0">
           <div class="fw-500 mb-1">Максимум объявлений с одного IP в час</div>
@@ -462,7 +487,7 @@ function renderListing(l) {
     <div class="d-flex justify-content-between align-items-start">
       <div style="flex:1;min-width:0">
         <div class="mb-1">${badges}</div>
-        <div style="font-size:13px;color:#888">${l.author_name || 'Аноним'} · ${dt} · <b>${l.category_id}</b></div>
+        <div style="font-size:13px;color:#888">${l.author_name || 'Аноним'} · ${dt} · <b>${l.category_id}</b>${l.is_ad && l.views ? ` · <span style="color:#f39c12"><i class="bi bi-eye"></i> ${l.views} просм.</span>` : ''}</div>
         <div class="mt-1" style="white-space:pre-wrap;font-size:14px">${escHtml(l.text)}</div>
         <div class="mt-2">${contacts}</div>
       </div>
@@ -710,6 +735,20 @@ async function loadSettings() {
   const d = await r.json();
   document.getElementById('switchModeration').checked = d.moderation_enabled === 'true';
   document.getElementById('inputRateLimit').value = d.rate_limit_per_hour ?? '10';
+  document.getElementById('inputMaxChars').value = d.max_listing_chars ?? '500';
+  document.getElementById('switchDarkTheme').checked = d.default_theme === 'dark';
+}
+
+async function saveMaxChars() {
+  const val = document.getElementById('inputMaxChars').value;
+  await api('POST', '/admin/settings', { max_listing_chars: val });
+  toast(`Лимит символов: ${val}`);
+}
+
+async function saveDarkTheme() {
+  const val = document.getElementById('switchDarkTheme').checked;
+  await api('POST', '/admin/settings', { default_theme: val ? 'dark' : 'light' });
+  toast(val ? 'Тёмная тема по умолчанию' : 'Светлая тема по умолчанию');
 }
 
 async function saveRateLimit() {
