@@ -47,6 +47,12 @@ listings_table = sqlalchemy.Table(
     sqlalchemy.Column("expires_at", sqlalchemy.DateTime, nullable=True),
 )
 
+settings_table = sqlalchemy.Table(
+    "settings", metadata,
+    sqlalchemy.Column("key", sqlalchemy.String(100), primary_key=True),
+    sqlalchemy.Column("value", sqlalchemy.String(500), nullable=False),
+)
+
 blacklist_table = sqlalchemy.Table(
     "blacklist", metadata,
     sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True, autoincrement=True),
@@ -152,6 +158,17 @@ def row_to_dict(row):
 
 # ── Startup ────────────────────────────────────────────────────────────────────
 
+async def get_setting(key: str, default: str = "") -> str:
+    row = await database.fetch_one(settings_table.select().where(settings_table.c.key == key))
+    return row["value"] if row else default
+
+async def set_setting(key: str, value: str):
+    row = await database.fetch_one(settings_table.select().where(settings_table.c.key == key))
+    if row:
+        await database.execute(settings_table.update().where(settings_table.c.key == key).values(value=value))
+    else:
+        await database.execute(settings_table.insert().values(key=key, value=value))
+
 @app.on_event("startup")
 async def startup():
     await database.connect()
@@ -162,6 +179,9 @@ async def startup():
                 id=cat["id"], name=cat["name"], image_data=None,
                 order_index=cat["order_index"], active=True, created_at=datetime.utcnow(),
             ))
+    # seed default settings
+    if not await database.fetch_one(settings_table.select().where(settings_table.c.key == "moderation_enabled")):
+        await database.execute(settings_table.insert().values(key="moderation_enabled", value="false"))
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -231,13 +251,15 @@ async def create_listing(data: ListingCreate):
             bl = await database.fetch_one(blacklist_table.select().where(blacklist_table.c.value == val))
             if bl:
                 raise HTTPException(status_code=403, detail="Заблокировано")
+    moderation = (await get_setting("moderation_enabled", "false")) == "true"
     listing_id = await database.execute(listings_table.insert().values(
         category_id=data.category_id, text=data.text.strip(),
         phone=data.phone, telegram=data.telegram, author_name=data.author_name,
-        created_at=datetime.utcnow(), approved=False, rejected=False,
+        created_at=datetime.utcnow(), approved=not moderation, rejected=False,
         pinned=False, vip=False, is_admin_post=False,
     ))
-    return {"id": listing_id, "message": "Объявление отправлено на модерацию"}
+    msg = "Объявление отправлено на модерацию" if moderation else "Объявление опубликовано"
+    return {"id": listing_id, "message": msg}
 
 @app.post("/complaints", status_code=201)
 async def create_complaint(data: ComplaintCreate):
@@ -425,6 +447,22 @@ async def delete_complaint(cid: int, token: str):
     check_admin(token)
     await database.execute(complaints_table.delete().where(complaints_table.c.id == cid))
     return {"message": "Удалено"}
+
+
+# ── Admin: settings ────────────────────────────────────────────────────────────
+
+@app.get("/admin/settings")
+async def get_settings(token: str):
+    check_admin(token)
+    rows = await database.fetch_all(settings_table.select())
+    return {r["key"]: r["value"] for r in rows}
+
+@app.post("/admin/settings")
+async def update_settings(token: str, data: dict):
+    check_admin(token)
+    for key, value in data.items():
+        await set_setting(key, str(value))
+    return {"message": "Сохранено"}
 
 
 # ── Admin panel HTML ───────────────────────────────────────────────────────────

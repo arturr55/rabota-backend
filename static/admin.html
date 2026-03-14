@@ -93,6 +93,7 @@
       <a class="nav-item-s" onclick="showSection('post')"><i class="bi bi-pencil-square"></i>Публикация</a>
       <a class="nav-item-s" onclick="showSection('blacklist')"><i class="bi bi-slash-circle"></i>Чёрный список</a>
       <a class="nav-item-s" onclick="showSection('complaints')" id="navComplaints"><i class="bi bi-exclamation-triangle"></i>Жалобы <span class="badge-nav" id="complaintsCount" style="display:none">0</span></a>
+      <a class="nav-item-s" onclick="showSection('settings')"><i class="bi bi-gear"></i>Настройки</a>
     </div>
     <div class="mt-auto p-3" style="position:absolute;bottom:0;left:0;right:0">
       <button class="btn btn-sm w-100" style="background:#2a3f5a;color:#a8c4d8;border:none" onclick="logout()"><i class="bi bi-box-arrow-left me-1"></i>Выйти</button>
@@ -224,6 +225,24 @@
       <div id="complaintsList"></div>
     </div>
 
+    <!-- SETTINGS -->
+    <div id="sectionSettings" class="section">
+      <div class="section-title"><i class="bi bi-gear me-2"></i>Настройки</div>
+      <div class="card-panel" style="max-width:500px">
+        <h6 class="fw-bold mb-3">Модерация объявлений</h6>
+        <div class="d-flex align-items-center justify-content-between p-3" style="background:#f8f9fa;border-radius:10px;border:1px solid #e0e0e0">
+          <div>
+            <div class="fw-500">Включить модерацию</div>
+            <small class="text-muted">Если включено — объявления видны только после одобрения. Если выключено — публикуются сразу.</small>
+          </div>
+          <div class="form-check form-switch ms-3 mb-0">
+            <input class="form-check-input" type="checkbox" role="switch" id="switchModeration" style="width:3em;height:1.5em;cursor:pointer" onchange="saveModerationSetting()">
+          </div>
+        </div>
+        <div id="settingsSavedMsg" class="text-success small mt-2" style="display:none"><i class="bi bi-check-circle me-1"></i>Сохранено</div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -323,6 +342,7 @@ async function init() {
   await loadStats();
   await loadCategories();
   await loadPending();
+  await loadSettings();
   populateCategoryFilter();
   populatePostCategories();
 }
@@ -346,6 +366,7 @@ function showSection(name) {
   if (name === 'categories') loadCategories();
   if (name === 'blacklist') loadBlacklist();
   if (name === 'complaints') loadComplaints();
+  if (name === 'settings') loadSettings();
   if (name === 'dashboard') { loadStats(); loadPending(); }
 }
 
@@ -668,6 +689,25 @@ async function loadComplaints() {
 async function deleteComplaint(id) {
   await api('DELETE', `/admin/complaints/${id}`);
   toast('Жалоба закрыта'); loadComplaints(); loadStats();
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+async function loadSettings() {
+  const r = await api('GET', '/admin/settings');
+  if (!r.ok) return;
+  const d = await r.json();
+  document.getElementById('switchModeration').checked = d.moderation_enabled === 'true';
+}
+
+async function saveModerationSetting() {
+  const val = document.getElementById('switchModeration').checked;
+  const r = await api('POST', '/admin/settings', { moderation_enabled: val ? 'true' : 'false' });
+  if (r.ok) {
+    const msg = document.getElementById('settingsSavedMsg');
+    msg.style.display = 'block';
+    setTimeout(() => msg.style.display = 'none', 2000);
+    toast(val ? 'Модерация включена' : 'Модерация выключена');
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
