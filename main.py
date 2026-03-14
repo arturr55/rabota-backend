@@ -181,7 +181,28 @@ async def get_categories():
         .where(categories_table.c.active == True)
         .order_by(categories_table.c.order_index)
     )
-    return [row_to_dict(r) for r in rows]
+    result = []
+    for row in rows:
+        d = row_to_dict(row)
+        cat_id = d["id"]
+        last = await database.fetch_one(
+            listings_table.select()
+            .where(listings_table.c.category_id == cat_id)
+            .where(listings_table.c.approved == True)
+            .where(listings_table.c.rejected == False)
+            .order_by(listings_table.c.created_at.desc())
+            .limit(1)
+        )
+        d["last_listing_text"] = last["text"] if last else None
+        count = await database.fetch_val(
+            select(func.count()).select_from(listings_table)
+            .where(listings_table.c.category_id == cat_id)
+            .where(listings_table.c.approved == True)
+            .where(listings_table.c.rejected == False)
+        )
+        d["listings_count"] = count or 0
+        result.append(d)
+    return result
 
 @app.get("/listings/{category_id}")
 async def get_listings(category_id: str):
