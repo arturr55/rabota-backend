@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -8,7 +8,7 @@ import databases
 import sqlalchemy
 from sqlalchemy import select, func
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./rabota.db")
@@ -53,6 +53,13 @@ settings_table = sqlalchemy.Table(
     "settings", metadata,
     sqlalchemy.Column("key", sqlalchemy.String(100), primary_key=True),
     sqlalchemy.Column("value", sqlalchemy.String(500), nullable=False),
+)
+
+rate_limit_table = sqlalchemy.Table(
+    "rate_limit_logs", metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True, autoincrement=True),
+    sqlalchemy.Column("ip", sqlalchemy.String(50), nullable=False),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=datetime.utcnow),
 )
 
 blacklist_table = sqlalchemy.Table(
@@ -184,8 +191,9 @@ async def startup():
                 order_index=cat["order_index"], active=True, created_at=datetime.utcnow(),
             ))
     # seed default settings
-    if not await database.fetch_one(settings_table.select().where(settings_table.c.key == "moderation_enabled")):
-        await database.execute(settings_table.insert().values(key="moderation_enabled", value="false"))
+    for key, val in [("moderation_enabled", "false"), ("rate_limit_per_hour", "10")]:
+        if not await database.fetch_one(settings_table.select().where(settings_table.c.key == key)):
+            await database.execute(settings_table.insert().values(key=key, value=val))
     # migrations
     for sql in [
         "ALTER TABLE listings ADD COLUMN photo TEXT",
@@ -195,6 +203,12 @@ async def startup():
             await database.execute(sql)
         except Exception:
             pass
+    # cleanup old rate limit logs
+    try:
+        cutoff = datetime.utcnow() - timedelta(hours=24)
+        await database.execute(rate_limit_table.delete().where(rate_limit_table.c.created_at < cutoff))
+    except Exception:
+        pass
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -238,7 +252,7 @@ async def get_categories():
     return result
 
 @app.get("/listings/{category_id}")
-async def get_listings(category_id: str):
+async def get_listings(category_id: str, limit: int = 20, offset: int = 0):
     now = datetime.utcnow()
     rows = await database.fetch_all(
         listings_table.select()
@@ -253,10 +267,10 @@ async def get_listings(category_id: str):
         if d.get("expires_at") and datetime.fromisoformat(d["expires_at"]) < now:
             continue
         result.append(d)
-    return result
+    return result[offset: offset + limit]
 
 @app.post("/listings", status_code=201)
-async def create_listing(data: ListingCreate):
+async def create_listing(request: Request, data: ListingCreate):
     if len(data.text.strip()) < 10:
         raise HTTPException(status_code=400, detail="Текст слишком короткий")
     for val in [data.phone, data.telegram]:
@@ -264,6 +278,20 @@ async def create_listing(data: ListingCreate):
             bl = await database.fetch_one(blacklist_table.select().where(blacklist_table.c.value == val))
             if bl:
                 raise HTTPException(status_code=403, detail="Заблокировано")
+    # rate limiting
+    client_ip = request.client.host if request.client else "unknown"
+    rate_limit = int(await get_setting("rate_limit_per_hour", "10"))
+    if rate_limit > 0:
+        one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+        count = await database.fetch_val(
+            select(func.count()).select_from(rate_limit_table)
+            .where(rate_limit_table.c.ip == client_ip)
+            .where(rate_limit_table.c.created_at > one_hour_ago)
+        )
+        if (count or 0) >= rate_limit:
+            raise HTTPException(status_code=429, detail=f"Слишком много объявлений. Лимит: {rate_limit} в час")
+        await database.execute(rate_limit_table.insert().values(ip=client_ip, created_at=datetime.utcnow()))
+
     moderation = (await get_setting("moderation_enabled", "false")) == "true"
     needs_moderation = moderation or data.is_ad  # реклама всегда на модерацию
     listing_id = await database.execute(listings_table.insert().values(
@@ -275,6 +303,18 @@ async def create_listing(data: ListingCreate):
     ))
     msg = "Отправлено на модерацию" if needs_moderation else "Объявление опубликовано"
     return {"id": listing_id, "message": msg}
+
+@app.get("/listing/{listing_id}")
+async def get_listing(listing_id: int):
+    row = await database.fetch_one(
+        listings_table.select()
+        .where(listings_table.c.id == listing_id)
+        .where(listings_table.c.approved == True)
+        .where(listings_table.c.rejected == False)
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Не найдено")
+    return row_to_dict(row)
 
 @app.get("/search")
 async def search_listings(q: str = ""):

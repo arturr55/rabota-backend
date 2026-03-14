@@ -241,6 +241,18 @@
         </div>
         <div id="settingsSavedMsg" class="text-success small mt-2" style="display:none"><i class="bi bi-check-circle me-1"></i>Сохранено</div>
       </div>
+
+      <div class="card-panel mt-3" style="max-width:500px">
+        <h6 class="fw-bold mb-3">Лимит объявлений</h6>
+        <div class="p-3" style="background:#f8f9fa;border-radius:10px;border:1px solid #e0e0e0">
+          <div class="fw-500 mb-1">Максимум объявлений с одного IP в час</div>
+          <small class="text-muted d-block mb-3">0 = без лимита. Защита от спама.</small>
+          <div class="input-group" style="max-width:200px">
+            <input type="number" id="inputRateLimit" class="form-control" min="0" max="1000" placeholder="10">
+            <button class="btn" style="background:var(--accent);color:#fff" onclick="saveRateLimit()">Сохранить</button>
+          </div>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -697,6 +709,13 @@ async function loadSettings() {
   if (!r.ok) return;
   const d = await r.json();
   document.getElementById('switchModeration').checked = d.moderation_enabled === 'true';
+  document.getElementById('inputRateLimit').value = d.rate_limit_per_hour ?? '10';
+}
+
+async function saveRateLimit() {
+  const val = document.getElementById('inputRateLimit').value;
+  const r = await api('POST', '/admin/settings', { rate_limit_per_hour: val });
+  if (r.ok) toast(`Лимит установлен: ${val} в час`);
 }
 
 async function saveModerationSetting() {
