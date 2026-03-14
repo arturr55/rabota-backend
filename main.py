@@ -197,6 +197,8 @@ async def startup():
         ("rate_limit_per_hour", "10"),
         ("max_listing_chars", "500"),
         ("default_theme", "light"),
+        ("ad_placement", "top"),
+        ("ad_interval", "5"),
     ]:
         if not await database.fetch_one(settings_table.select().where(settings_table.c.key == key)):
             await database.execute(settings_table.insert().values(key=key, value=val))
@@ -333,8 +335,10 @@ async def app_settings():
     rows = await database.fetch_all(settings_table.select())
     d = {r["key"]: r["value"] for r in rows}
     return {
-        "default_theme":    d.get("default_theme", "light"),
+        "default_theme":     d.get("default_theme", "light"),
         "max_listing_chars": int(d.get("max_listing_chars", "500")),
+        "ad_placement":      d.get("ad_placement", "top"),
+        "ad_interval":       int(d.get("ad_interval", "5")),
     }
 
 @app.post("/listing/{listing_id}/view", status_code=200)
