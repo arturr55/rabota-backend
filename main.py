@@ -45,6 +45,7 @@ listings_table = sqlalchemy.Table(
     sqlalchemy.Column("vip", sqlalchemy.Boolean, default=False),
     sqlalchemy.Column("is_admin_post", sqlalchemy.Boolean, default=False),
     sqlalchemy.Column("expires_at", sqlalchemy.DateTime, nullable=True),
+    sqlalchemy.Column("photo", sqlalchemy.Text, nullable=True),
 )
 
 settings_table = sqlalchemy.Table(
@@ -105,6 +106,7 @@ class ListingCreate(BaseModel):
     phone: Optional[str] = None
     telegram: Optional[str] = None
     author_name: Optional[str] = None
+    photo: Optional[str] = None
 
 class ListingEdit(BaseModel):
     text: Optional[str] = None
@@ -182,6 +184,11 @@ async def startup():
     # seed default settings
     if not await database.fetch_one(settings_table.select().where(settings_table.c.key == "moderation_enabled")):
         await database.execute(settings_table.insert().values(key="moderation_enabled", value="false"))
+    # migration: add photo column if missing
+    try:
+        await database.execute("ALTER TABLE listings ADD COLUMN photo TEXT")
+    except Exception:
+        pass
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -255,6 +262,7 @@ async def create_listing(data: ListingCreate):
     listing_id = await database.execute(listings_table.insert().values(
         category_id=data.category_id, text=data.text.strip(),
         phone=data.phone, telegram=data.telegram, author_name=data.author_name,
+        photo=data.photo,
         created_at=datetime.utcnow(), approved=not moderation, rejected=False,
         pinned=False, vip=False, is_admin_post=False,
     ))
