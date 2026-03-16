@@ -37,6 +37,7 @@ listings_table = sqlalchemy.Table(
     sqlalchemy.Column("text", sqlalchemy.Text, nullable=False),
     sqlalchemy.Column("phone", sqlalchemy.String(50)),
     sqlalchemy.Column("telegram", sqlalchemy.String(100)),
+    sqlalchemy.Column("maxi", sqlalchemy.String(100)),
     sqlalchemy.Column("author_name", sqlalchemy.String(100)),
     sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=datetime.utcnow),
     sqlalchemy.Column("approved", sqlalchemy.Boolean, default=False),
@@ -114,6 +115,7 @@ class ListingCreate(BaseModel):
     text: str
     phone: Optional[str] = None
     telegram: Optional[str] = None
+    maxi: Optional[str] = None
     author_name: Optional[str] = None
     photo: Optional[str] = None
     is_ad: bool = False
@@ -122,6 +124,7 @@ class ListingEdit(BaseModel):
     text: Optional[str] = None
     phone: Optional[str] = None
     telegram: Optional[str] = None
+    maxi: Optional[str] = None
     author_name: Optional[str] = None
     expires_at: Optional[datetime] = None
 
@@ -207,6 +210,7 @@ async def startup():
         "ALTER TABLE listings ADD COLUMN photo TEXT",
         "ALTER TABLE listings ADD COLUMN is_ad BOOLEAN DEFAULT FALSE",
         "ALTER TABLE listings ADD COLUMN views INTEGER DEFAULT 0",
+        "ALTER TABLE listings ADD COLUMN maxi VARCHAR(100)",
     ]:
         try:
             await database.execute(sql)
@@ -309,7 +313,7 @@ async def create_listing(request: Request, data: ListingCreate):
     needs_moderation = moderation or data.is_ad  # реклама всегда на модерацию
     listing_id = await database.execute(listings_table.insert().values(
         category_id=data.category_id, text=data.text.strip(),
-        phone=data.phone, telegram=data.telegram, author_name=data.author_name,
+        phone=data.phone, telegram=data.telegram, maxi=data.maxi, author_name=data.author_name,
         photo=data.photo, is_ad=data.is_ad,
         created_at=datetime.utcnow(), approved=not needs_moderation, rejected=False,
         pinned=False, vip=False, is_admin_post=False,
