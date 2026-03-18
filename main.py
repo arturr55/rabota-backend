@@ -49,6 +49,7 @@ listings_table = sqlalchemy.Table(
     sqlalchemy.Column("photo", sqlalchemy.Text, nullable=True),
     sqlalchemy.Column("is_ad", sqlalchemy.Boolean, default=False),
     sqlalchemy.Column("views", sqlalchemy.Integer, default=0),
+    sqlalchemy.Column("city", sqlalchemy.String(100), nullable=True),
 )
 
 settings_table = sqlalchemy.Table(
@@ -119,6 +120,7 @@ class ListingCreate(BaseModel):
     author_name: Optional[str] = None
     photo: Optional[str] = None
     is_ad: bool = False
+    city: Optional[str] = None
 
 class ListingEdit(BaseModel):
     text: Optional[str] = None
@@ -211,6 +213,7 @@ async def startup():
         "ALTER TABLE listings ADD COLUMN is_ad BOOLEAN DEFAULT FALSE",
         "ALTER TABLE listings ADD COLUMN views INTEGER DEFAULT 0",
         "ALTER TABLE listings ADD COLUMN maxi VARCHAR(100)",
+        "ALTER TABLE listings ADD COLUMN city VARCHAR(100)",
     ]:
         try:
             await database.execute(sql)
@@ -265,15 +268,20 @@ async def get_categories():
     return result
 
 @app.get("/listings/{category_id}")
-async def get_listings(category_id: str, limit: int = 20, offset: int = 0):
+async def get_listings(category_id: str, limit: int = 20, offset: int = 0, city: Optional[str] = None):
     now = datetime.utcnow()
-    rows = await database.fetch_all(
+    q = (
         listings_table.select()
         .where(listings_table.c.category_id == category_id)
         .where(listings_table.c.approved == True)
         .where(listings_table.c.rejected == False)
         .order_by(listings_table.c.pinned.desc(), listings_table.c.created_at.desc())
     )
+    if city and city != "Все города":
+        q = q.where(
+            (listings_table.c.city == city) | (listings_table.c.city == None)
+        )
+    rows = await database.fetch_all(q)
     result = []
     for r in rows:
         d = row_to_dict(r)
@@ -314,7 +322,7 @@ async def create_listing(request: Request, data: ListingCreate):
     listing_id = await database.execute(listings_table.insert().values(
         category_id=data.category_id, text=data.text.strip(),
         phone=data.phone, telegram=data.telegram, maxi=data.maxi, author_name=data.author_name,
-        photo=data.photo, is_ad=data.is_ad,
+        photo=data.photo, is_ad=data.is_ad, city=data.city,
         created_at=datetime.utcnow(), approved=not needs_moderation, rejected=False,
         pinned=False, vip=False, is_admin_post=False,
     ))
@@ -362,18 +370,23 @@ async def track_view(listing_id: int):
     return {"ok": True}
 
 @app.get("/search")
-async def search_listings(q: str = ""):
+async def search_listings(q: str = "", city: Optional[str] = None):
     q = q.strip()
     if len(q) < 2:
         return []
     now = datetime.utcnow()
-    rows = await database.fetch_all(
+    query = (
         listings_table.select()
         .where(listings_table.c.approved == True)
         .where(listings_table.c.rejected == False)
         .order_by(listings_table.c.created_at.desc())
         .limit(100)
     )
+    if city and city != "Все города":
+        query = query.where(
+            (listings_table.c.city == city) | (listings_table.c.city == None)
+        )
+    rows = await database.fetch_all(query)
     term = q.lower()
     result = []
     for r in rows:
